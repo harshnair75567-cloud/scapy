@@ -27,6 +27,7 @@ import os
 import random
 import re
 import shutil
+import shlex
 import socket
 import struct
 import subprocess
@@ -1047,17 +1048,24 @@ def do_graph(
         format = "-T%s" % format
     if isinstance(target, str):
         if target.startswith('|'):
-            target = subprocess.Popen(target[1:].lstrip(), shell=True,
-                                      stdin=subprocess.PIPE).stdin
+            cmd_args = shlex.split(target[1:].lstrip())
+            target = subprocess.Popen(cmd_args, shell=False,
+                          stdin=subprocess.PIPE).stdin
         elif target.startswith('>'):
             target = open(target[1:].lstrip(), "wb")
         else:
             target = open(os.path.abspath(target), "wb")
     target = cast(IO[bytes], target)
+    # Build the argument list manually to avoid the shell
+    cmd = [prog]
+    if options:
+        cmd.extend(shlex.split(options))
+    if format:
+        cmd.append(format)
+
     proc = subprocess.Popen(
-        "\"%s\" %s %s" % (prog, options or "", format or ""),
-        shell=True, stdin=subprocess.PIPE, stdout=target,
-        stderr=subprocess.PIPE
+        cmd, shell=False, stdin=subprocess.PIPE, 
+        stdout=target, stderr=subprocess.PIPE
     )
     _, stderr = proc.communicate(bytes_encode(graph))
     if proc.returncode != 0:
